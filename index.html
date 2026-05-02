@@ -3,55 +3,61 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Panel + Proyectos</title>
+<title>BerMatCode Panel</title>
 
 <style>
 body{
   font-family: Arial;
-  background:#111;
+  background:#0f0f0f;
   color:#fff;
-  padding:10px;
+  margin:0;
 }
 
-h1{
+/* HEADER */
+header{
   text-align:center;
+  padding:15px;
+  background:#1a1a1a;
+  font-weight:bold;
 }
 
 /* PANEL */
 .panel{
-  background:#1e1e1e;
   padding:15px;
-  border-radius:10px;
-  margin-bottom:20px;
+  background:#181818;
 }
 
 input, textarea{
   width:100%;
-  margin:5px 0;
-  padding:8px;
-  border-radius:6px;
+  padding:10px;
+  margin:6px 0;
+  border-radius:8px;
   border:none;
+  background:#222;
+  color:#fff;
 }
 
 button{
   width:100%;
-  padding:10px;
+  padding:12px;
+  border:none;
+  border-radius:10px;
   background:#7a00ff;
   color:#fff;
-  border:none;
-  border-radius:8px;
   font-weight:bold;
+  cursor:pointer;
 }
 
-/* PROYECTOS */
+/* GRID */
 .grid{
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
   gap:10px;
+  padding:10px;
 }
 
 .card{
-  background:#222;
+  background:#1e1e1e;
   border-radius:10px;
   overflow:hidden;
 }
@@ -71,90 +77,155 @@ button{
   font-size:12px;
   padding:5px;
 }
+
+/* MODAL LOADING */
+.modal{
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background:rgba(0,0,0,0.7);
+  display:none;
+  justify-content:center;
+  align-items:center;
+  z-index:999;
+}
+
+.loader{
+  border:5px solid #333;
+  border-top:5px solid #7a00ff;
+  border-radius:50%;
+  width:50px;
+  height:50px;
+  animation:spin 1s linear infinite;
+}
+
+@keyframes spin{
+  0%{transform:rotate(0deg);}
+  100%{transform:rotate(360deg);}
+}
+
+/* MENSAJE */
+.msg{
+  text-align:center;
+  padding:10px;
+}
 </style>
 </head>
 
 <body>
 
-<h1>🚀 Panel de Subida</h1>
+<header>🚀 BerMatCode Panel</header>
 
 <div class="panel">
-  <input type="text" id="nombre" placeholder="Nombre del proyecto">
+  <input type="text" id="titulo" placeholder="Título">
   <textarea id="descripcion" placeholder="Descripción"></textarea>
-  <input type="text" id="categoria" placeholder="Categoría (amor, carta, etc)">
-  
+
   <label>Archivo HTML</label>
-  <input type="file" id="htmlFile" accept=".html">
+  <input type="file" id="html" accept=".html">
 
   <label>Imagen</label>
-  <input type="file" id="imgFile" accept="image/*">
+  <input type="file" id="img" accept="image/*">
 
   <button onclick="subir()">Subir Proyecto</button>
 </div>
 
-<h1>📂 Proyectos</h1>
+<div class="msg" id="mensaje"></div>
 
 <div class="grid" id="contenedor"></div>
 
+<!-- MODAL -->
+<div class="modal" id="modal">
+  <div class="loader"></div>
+</div>
+
 <script>
-const API = "https://bermatcode1.onrender.com";
+const API = "https://bermatcode1.onrender.com"; // tu backend
 
-/* 🔼 SUBIR */
+const modal = document.getElementById("modal");
+const mensaje = document.getElementById("mensaje");
+
+/* SUBIR */
 async function subir(){
-  const nombre = document.getElementById("nombre").value;
-  const descripcion = document.getElementById("descripcion").value;
-  const categoria = document.getElementById("categoria").value;
-  const html = document.getElementById("htmlFile").files[0];
-  const img = document.getElementById("imgFile").files[0];
 
-  if(!html || !img){
-    alert("Falta archivo o imagen");
+  const titulo = document.getElementById("titulo").value;
+  const descripcion = document.getElementById("descripcion").value;
+  const html = document.getElementById("html").files[0];
+  const img = document.getElementById("img").files[0];
+
+  if(!titulo || !descripcion || !html || !img){
+    mensaje.innerText = "⚠️ Completa todos los campos";
     return;
   }
 
-  const form = new FormData();
-  form.append("html", html);
-  form.append("img", img);
-  form.append("nombre", nombre);
-  form.append("descripcion", descripcion);
-  form.append("categoria", categoria);
+  modal.style.display = "flex";
 
-  const res = await fetch(API + "/uploadFull", {
-    method: "POST",
-    body: form
-  });
+  try{
+    const form = new FormData();
+    form.append("html", html);
+    form.append("img", img);
+    form.append("titulo", titulo);
+    form.append("descripcion", descripcion);
 
-  const data = await res.json();
+    const res = await fetch(API + "/upload", {
+      method: "POST",
+      body: form
+    });
 
-  if(data.ok){
-    alert("Subido correctamente");
-    cargar();
-  }else{
-    alert("Error");
-    console.log(data);
+    const data = await res.json();
+
+    if(data.ok){
+      mensaje.innerText = "✅ Subido correctamente";
+      limpiar();
+      cargar();
+    }else{
+      mensaje.innerText = "❌ Error al subir";
+      console.log(data);
+    }
+
+  }catch(e){
+    mensaje.innerText = "❌ Error conexión";
+    console.log(e);
+  }
+
+  modal.style.display = "none";
+}
+
+/* LIMPIAR */
+function limpiar(){
+  document.getElementById("titulo").value = "";
+  document.getElementById("descripcion").value = "";
+  document.getElementById("html").value = "";
+  document.getElementById("img").value = "";
+}
+
+/* CARGAR PROYECTOS */
+async function cargar(){
+  try{
+    const res = await fetch(API + "/proyectos");
+    const data = await res.json();
+
+    const cont = document.getElementById("contenedor");
+    cont.innerHTML = "";
+
+    data.reverse().forEach(p => {
+      cont.innerHTML += `
+        <div class="card">
+          <img src="${p.imagen}">
+          <h3>${p.titulo}</h3>
+          <p>${p.descripcion}</p>
+          <a href="${p.url}" target="_blank" style="color:#7a00ff;padding:5px;display:block;">Ver</a>
+        </div>
+      `;
+    });
+
+  }catch(e){
+    console.log("Error cargando proyectos", e);
   }
 }
 
-/* 📥 CARGAR PROYECTOS */
-async function cargar(){
-  const res = await fetch(API + "/proyectos");
-  const data = await res.json();
-
-  const cont = document.getElementById("contenedor");
-  cont.innerHTML = "";
-
-  data.forEach(p => {
-    cont.innerHTML += `
-      <div class="card">
-        <img src="${p.img}">
-        <h3>${p.nombre}</h3>
-        <p>${p.descripcion}</p>
-        <a href="${p.url}" target="_blank">Ver</a>
-      </div>
-    `;
-  });
-}
-
+/* INICIO */
 cargar();
 </script>
 
