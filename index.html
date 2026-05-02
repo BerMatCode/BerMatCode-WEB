@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel + Proyectos</title>
+
+<style>
+body{
+  font-family: Arial;
+  background:#111;
+  color:#fff;
+  padding:10px;
+}
+
+h1{
+  text-align:center;
+}
+
+/* PANEL */
+.panel{
+  background:#1e1e1e;
+  padding:15px;
+  border-radius:10px;
+  margin-bottom:20px;
+}
+
+input, textarea{
+  width:100%;
+  margin:5px 0;
+  padding:8px;
+  border-radius:6px;
+  border:none;
+}
+
+button{
+  width:100%;
+  padding:10px;
+  background:#7a00ff;
+  color:#fff;
+  border:none;
+  border-radius:8px;
+  font-weight:bold;
+}
+
+/* PROYECTOS */
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:10px;
+}
+
+.card{
+  background:#222;
+  border-radius:10px;
+  overflow:hidden;
+}
+
+.card img{
+  width:100%;
+  height:100px;
+  object-fit:cover;
+}
+
+.card h3{
+  font-size:14px;
+  padding:5px;
+}
+
+.card p{
+  font-size:12px;
+  padding:5px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🚀 Panel de Subida</h1>
+
+<div class="panel">
+  <input type="text" id="nombre" placeholder="Nombre del proyecto">
+  <textarea id="descripcion" placeholder="Descripción"></textarea>
+  <input type="text" id="categoria" placeholder="Categoría (amor, carta, etc)">
+  
+  <label>Archivo HTML</label>
+  <input type="file" id="htmlFile" accept=".html">
+
+  <label>Imagen</label>
+  <input type="file" id="imgFile" accept="image/*">
+
+  <button onclick="subir()">Subir Proyecto</button>
+</div>
+
+<h1>📂 Proyectos</h1>
+
+<div class="grid" id="contenedor"></div>
+
+<script>
+const API = "https://bermatcode1.onrender.com";
+
+/* 🔼 SUBIR */
+async function subir(){
+  const nombre = document.getElementById("nombre").value;
+  const descripcion = document.getElementById("descripcion").value;
+  const categoria = document.getElementById("categoria").value;
+  const html = document.getElementById("htmlFile").files[0];
+  const img = document.getElementById("imgFile").files[0];
+
+  if(!html || !img){
+    alert("Falta archivo o imagen");
+    return;
+  }
+
+  const form = new FormData();
+  form.append("html", html);
+  form.append("img", img);
+  form.append("nombre", nombre);
+  form.append("descripcion", descripcion);
+  form.append("categoria", categoria);
+
+  const res = await fetch(API + "/uploadFull", {
+    method: "POST",
+    body: form
+  });
+
+  const data = await res.json();
+
+  if(data.ok){
+    alert("Subido correctamente");
+    cargar();
+  }else{
+    alert("Error");
+    console.log(data);
+  }
+}
+
+/* 📥 CARGAR PROYECTOS */
+async function cargar(){
+  const res = await fetch(API + "/proyectos");
+  const data = await res.json();
+
+  const cont = document.getElementById("contenedor");
+  cont.innerHTML = "";
+
+  data.forEach(p => {
+    cont.innerHTML += `
+      <div class="card">
+        <img src="${p.img}">
+        <h3>${p.nombre}</h3>
+        <p>${p.descripcion}</p>
+        <a href="${p.url}" target="_blank">Ver</a>
+      </div>
+    `;
+  });
+}
+
+cargar();
+</script>
+
+</body>
+</html>
