@@ -1,64 +1,58 @@
-const express = require("express");
-const multer = require("multer");
-const axios = require("axios");
-
-const app = express();
-const upload = multer();
-
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-
-const OWNER = "BerMatCode";
-const REPO = "BerMatCode-WEB";
-const BRANCH = "main";
-
-// 📂 Ruta donde se guardarán los HTML
-function generarRuta(nombreArchivo) {
-  const fecha = new Date();
-  const año = fecha.getFullYear();
-  const mes = String(fecha.getMonth() + 1).padStart(2, "0");
-
-  return `${año}/${mes}/${Date.now()}-${nombreArchivo}`;
-}
-
-// 🌐 Inicio
-app.get("/", (req, res) => {
-  res.send("Servidor funcionando BerMatCode 🚀");
-});
-
-// 📤 SUBIR HTML
-app.post("/upload", upload.single("file"), async (req, res) => {
+app.post("/upload", upload.fields([
+  { name: "html", maxCount: 1 },
+  { name: "img", maxCount: 1 }
+]), async (req, res) => {
   try {
-    const file = req.file;
-    const { titulo, descripcion, imagen } = req.body;
+    const htmlFile = req.files["html"]?.[0];
+    const imgFile = req.files["img"]?.[0];
 
-    if (!file) {
-      return res.status(400).json({ error: "No se subió archivo" });
+    const { titulo, descripcion } = req.body;
+
+    if (!htmlFile || !imgFile) {
+      return res.status(400).json({ error: "Faltan archivos" });
     }
 
-    const path = generarRuta(file.originalname);
-    const content = file.buffer.toString("base64");
+    // 📂 rutas
+    const htmlPath = generarRuta(htmlFile.originalname);
+    const imgPath = `img/${Date.now()}-${imgFile.originalname}`;
 
-    // 📄 Subir HTML
+    const htmlContent = htmlFile.buffer.toString("base64");
+    const imgContent = imgFile.buffer.toString("base64");
+
+    // 📄 subir HTML
     await axios.put(
-      `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}`,
+      `https://api.github.com/repos/${OWNER}/${REPO}/contents/${htmlPath}`,
       {
-        message: "Subida automática HTML",
-        content: content,
+        message: "Subida HTML",
+        content: htmlContent,
         branch: BRANCH,
       },
       {
-        headers: {
-          Authorization: `token ${GITHUB_TOKEN}`,
-        },
+        headers: { Authorization: `token ${GITHUB_TOKEN}` },
       }
     );
 
-    const rawUrl = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${path}`;
+    // 🖼️ subir imagen
+    await axios.put(
+      `https://api.github.com/repos/${OWNER}/${REPO}/contents/${imgPath}`,
+      {
+        message: "Subida imagen",
+        content: imgContent,
+        branch: BRANCH,
+      },
+      {
+        headers: { Authorization: `token ${GITHUB_TOKEN}` },
+      }
+    );
 
-    // 📦 Guardar metadata (tipo base de datos simple)
+    const htmlUrl = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${htmlPath}`;
+    const imgUrl = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${imgPath}`;
+
+    // 📦 guardar metadata
     const dataPath = "data/proyectos.json";
 
     let proyectos = [];
+    let sha = null;
 
     try {
       const existing = await axios.get(
@@ -70,81 +64,48 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
       const decoded = Buffer.from(existing.data.content, "base64").toString();
       proyectos = JSON.parse(decoded);
+      sha = existing.data.sha;
 
-      // actualizar archivo
-      await axios.put(
-        `https://api.github.com/repos/${OWNER}/${REPO}/contents/${dataPath}`,
-        {
-          message: "Actualizar proyectos",
-          content: Buffer.from(
-            JSON.stringify([
-              ...proyectos,
-              { titulo, descripcion, imagen, url: rawUrl },
-            ])
-          ).toString("base64"),
-          sha: existing.data.sha,
-          branch: BRANCH,
-        },
-        {
-          headers: { Authorization: `token ${GITHUB_TOKEN}` },
-        }
-      );
-
-    } catch {
-      // crear archivo si no existe
-      await axios.put(
-        `https://api.github.com/repos/${OWNER}/${REPO}/contents/${dataPath}`,
-        {
-          message: "Crear base de datos proyectos",
-          content: Buffer.from(
-            JSON.stringify([
-              { titulo, descripcion, imagen, url: rawUrl },
-            ])
-          ).toString("base64"),
-          branch: BRANCH,
-        },
-        {
-          headers: { Authorization: `token ${GITHUB_TOKEN}` },
-        }
-      );
+    } catch (e) {
+      // no existe, se crea luego
     }
 
-    res.json({
-      ok: true,
-      url: rawUrl,
-    });
+    const nuevo = {
+      titulo,
+      descripcion,
+      imagen: imgUrl,
+      url: htmlUrl,
+      fecha: Date.now()
+    };
 
-  } catch (error) {
-    res.status(500).json({
-      error: error.response?.data || error.message,
-    });
-  }
-});
+    const nuevoContenido = Buffer.from(
+      JSON.stringify([...proyectos, nuevo], null, 2)
+    ).toString("base64");
 
-// 📥 OBTENER PROYECTOS
-app.get("/proyectos", async (req, res) => {
-  try {
-    const dataPath = "data/proyectos.json";
-
-    const response = await axios.get(
+    await axios.put(
       `https://api.github.com/repos/${OWNER}/${REPO}/contents/${dataPath}`,
+      {
+        message: "Actualizar proyectos",
+        content: nuevoContenido,
+        sha: sha || undefined,
+        branch: BRANCH,
+      },
       {
         headers: { Authorization: `token ${GITHUB_TOKEN}` },
       }
     );
 
-    const decoded = Buffer.from(response.data.content, "base64").toString();
-    const proyectos = JSON.parse(decoded);
+    res.json({
+      ok: true,
+      url: htmlUrl,
+      img: imgUrl
+    });
 
-    res.json(proyectos);
+  } catch (error) {
+    console.log("ERROR REAL:", error.response?.data || error.message);
 
-  } catch (e) {
-    res.json([]);
+    res.status(500).json({
+      error: error.response?.data || error.message,
+    });
   }
-});
-
-// 🚀 Render
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("Servidor corriendo en puerto " + PORT);
 });
